@@ -7,9 +7,9 @@
 (source
  (github username/reponame))
 
-(authors "Author Name")
+(authors "Alec Perro")
 
-(maintainers "Maintainer Name")
+(maintainers "Alec Perro")
 
 (license LICENSE)
 

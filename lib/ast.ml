@@ -28,7 +28,7 @@ and expression =
 [@@deriving show { with_path = false }, sexp]
 
 and statement =
-  | Let of { name : identifier; value : expression }
+  | Variable of { name : identifier; value : expression }
   | Return of expression
   | ExpressionStatement of expression
   | BlockStatement of block

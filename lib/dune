@@ -1,5 +1,5 @@
 (library
- (name jinja_html_parser)
+ (name jinja_parser)
  (libraries base fmt ppx_expect ppx_sexp_conv sexplib)
  (flags
   (:standard -w -11 -open Sexplib.Std))

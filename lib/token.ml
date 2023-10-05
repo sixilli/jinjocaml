@@ -15,6 +15,7 @@ type t =
   | GreaterThan
   | Equal
   | NotEqual
+  | Percent
   (* Delimiters *)
   | Comma
   | Semicolon
@@ -25,10 +26,14 @@ type t =
   | RightBrace
   | LeftBracket
   | RightBracket
+  | StatementEnd
+  | ExpressionEnd
   (* Keyword *)
   | Macro
   | Function
-  | Let
+  | Variable
+  | Statement
+  | Expression
   | True
   | False
   | If
@@ -39,7 +44,7 @@ type t =
 let lookup_ident str =
   match str with
   | "fn" -> Function
-  | "let" -> Let
+  | "variable" -> Variable
   | "true" -> True
   | "false" -> False
   | "if" -> If

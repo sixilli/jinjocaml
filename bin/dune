@@ -1,4 +1,4 @@
 (executable
  (public_name jinja_html_parser)
  (name main)
- (libraries jinja_html_parser))
+ (libraries jinja_parser))

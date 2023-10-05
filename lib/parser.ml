@@ -47,6 +47,11 @@ let advance_until parser f =
 let chomp_semicolon parser =
   match parser.peek with Some Token.Semicolon -> advance parser | _ -> parser
 
+let chomp_expression_end parser =
+  match parser.peek with
+  | Some Token.ExpressionEnd -> advance parser
+  | _ -> parser
+
 let next_token parser =
   let parser = advance parser in
   (parser, parser.current)
@@ -62,6 +67,9 @@ let peek_is parser token = Option.equal Token.equal parser.peek (Some token)
 
 let expect_assign parser =
   expect_peek parser (function Token.Assign -> true | _ -> false)
+
+let expect_expression_end parser =
+  expect_peek parser (function Token.ExpressionEnd -> true | _ -> false)
 
 let expect_colon parser =
   expect_peek parser (function Token.Colon -> true | _ -> false)
@@ -110,17 +118,18 @@ let rec parse parser =
 
 and parse_statement parser =
   match parser.current with
-  | Some Token.Let -> parse_let parser
   | Some Token.Return -> parse_return parser
+  | Some Token.Expression -> parse_jinja_expression parser
   | Some _ -> parse_expression_statement parser
   | None -> Error "no more tokens"
 
-and parse_let parser =
-  match parser.current with
-  | Some Token.Let -> parse_let parser
-  | Some Token.Return -> parse_return parser
-  | Some _ -> parse_expression_statement parser
-  | None -> Error "no more tokens"
+and parse_variable parser =
+  let* parser, name = parse_identifier parser in
+  let* parser = expect_expression_end parser in
+  (* move parser onto the beginning of the expression *)
+  Ok
+    ( parser,
+      Ast.Variable { name; value = Ast.String (Ast.show_identifier name) } )
 
 and parse_return parser =
   let parser = advance parser in
@@ -128,15 +137,15 @@ and parse_return parser =
   let parser = chomp_semicolon parser in
   Ok (parser, Ast.Return expr)
 
+and parse_identifier parser =
+  match parser.peek with
+  | Some (Ident identifier) -> Ok (advance parser, { identifier })
+  | _ -> Error "missing ident"
+
 and parse_expression_statement parser =
   let* parser, expr = parse_expression parser `Lowest in
   let parser = chomp_semicolon parser in
   Ok (parser, Ast.ExpressionStatement expr)
-
-(* and parse_identifier parser = *)
-(*   match parser.peek with *)
-(*   | Some (Ident identifier) -> Ok (advance parser, identifier) *)
-(*   | _ -> Error "missing ident" *)
 
 and parse_block parser =
   let parser = advance parser in
@@ -150,6 +159,15 @@ and parse_block parser =
   in
   let* parser, block = parse_block' parser [] in
   Ok (parser, Ast.{ block })
+
+and parse_jinja_expression parser =
+  let* parser, name = parse_identifier parser in
+  let* parser = expect_assign parser in
+  (* move parser onto the beginning of the expression *)
+  let parser = advance parser in
+  let* parser, value = parse_expression parser `Lowest in
+  let parser = chomp_semicolon parser in
+  Ok (parser, Ast.Variable { name; value })
 
 and parse_expression parser prec =
   let* parser, left = parse_prefix_expression parser in
@@ -171,6 +189,7 @@ and parse_expression parser prec =
 and parse_prefix_expression parser =
   let map_parser = Result.map ~f:(fun v -> (parser, v)) in
   let token = parser.current |> Option.value_exn in
+  let () = Stdlib.print_endline @@ Token.show token in
   match token with
   | Token.Ident _ -> expr_parse_identifier parser |> map_parser
   | Token.Integer _ -> expr_parse_number parser |> map_parser
@@ -185,6 +204,8 @@ and parse_prefix_expression parser =
   | Token.Macro -> expr_parse_macro parser
   | Token.LeftBracket -> expr_parse_array_literal parser
   | Token.LeftBrace -> expr_parse_hash_literal parser
+  | Token.LessThan -> expr_parse_identifier parser |> map_parser
+  | Token.GreaterThan -> expr_parse_identifier parser |> map_parser
   | tok ->
       Error (Fmt.str "unexpected prefix expr: %a\n %a" Token.pp tok pp parser)
 
@@ -371,7 +392,7 @@ and parse_list_of_parameters parser parameters =
   | None -> Error "unexpected end of stream"
 
 let string_of_statement = function
-  | Ast.Let stmt ->
+  | Ast.Variable stmt ->
       Fmt.str "LET: let %s = %s"
         (Ast.show_identifier stmt.name)
         (show_expression stmt.value)
