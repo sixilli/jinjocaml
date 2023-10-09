@@ -52,3 +52,4 @@ let lookup_ident str =
   | "return" -> Return
   | "macro" -> Macro
   | _ -> Ident str
+;;

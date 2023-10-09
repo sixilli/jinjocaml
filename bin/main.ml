@@ -8,5 +8,6 @@ let main =
   match Parser.parse parser with
   | Ok v -> print_endline @@ Ast.show_node v
   | Error e -> print_endline @@ Parser.show_parse_error e
+;;
 
 let () = main
