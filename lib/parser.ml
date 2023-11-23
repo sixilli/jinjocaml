@@ -1,5 +1,22 @@
 open Base
 
+module Context = struct
+  type context_val =
+    | String of string
+    | Bool of bool
+    | List of string list
+  [@@deriving show]
+
+  type t = (string, context_val) Hashtbl.t
+
+  let pp ppf values =
+    Hashtbl.iteri values ~f:(fun ~key ~data ->
+      Stdlib.Format.fprintf ppf "@[<1>%s: %s@]@." key (show_context_val data))
+  ;;
+
+  let make : t = Hashtbl.create (module String)
+end
+
 let show_expression = Ast.show_expression
 let ( let* ) res f = Base.Result.bind res ~f
 
@@ -31,6 +48,7 @@ type t =
   { lexer : Lexer.t
   ; current : Token.t option
   ; peek : Token.t option
+  ; params : Context.t
   }
 [@@deriving show]
 
@@ -45,32 +63,7 @@ let err parser msg statements = Error { parser; msg; statements }
 
 let advance parser =
   let lexer, peek = Lexer.next_token parser.lexer in
-  { lexer; peek; current = parser.peek }
-;;
-
-let advance_until parser f =
-  let parser = ref parser in
-  while not (f !parser) do
-    parser := advance !parser
-  done;
-  !parser
-;;
-
-let chomp_semicolon parser =
-  match parser.peek with
-  | Some Token.Semicolon -> advance parser
-  | _ -> parser
-;;
-
-let chomp_expression_end parser =
-  match parser.peek with
-  | Some Token.ExpressionEnd -> advance parser
-  | _ -> parser
-;;
-
-let next_token parser =
-  let parser = advance parser in
-  parser, parser.current
+  { parser with lexer; peek; current = parser.peek }
 ;;
 
 let expect_peek parser condition =
@@ -81,8 +74,6 @@ let expect_peek parser condition =
     else Error (Fmt.failwith "missing peeked: %a" pp parser)
   | None -> Error "no peek token"
 ;;
-
-let peek_is parser token = Option.equal Token.equal parser.peek (Some token)
 
 let expect_assign parser =
   expect_peek parser (function
@@ -138,6 +129,33 @@ let expect_rbracket parser =
     | _ -> false)
 ;;
 
+let advance_until parser f =
+  let parser = ref parser in
+  while not (f !parser) do
+    parser := advance !parser
+  done;
+  !parser
+;;
+
+let chomp_semicolon parser =
+  match parser.peek with
+  | Some Token.Semicolon -> advance parser
+  | _ -> parser
+;;
+
+let chomp_expression_end parser =
+  match parser.peek with
+  | Some Token.ExpressionEnd -> advance parser
+  | _ -> parser
+;;
+
+let next_token parser =
+  let parser = advance parser in
+  parser, parser.current
+;;
+
+let peek_is parser token = Option.equal Token.equal parser.peek (Some token)
+
 let peek_precedence parser =
   match parser.peek with
   | Some token -> token_prec token
@@ -150,8 +168,8 @@ let curr_precedence parser =
   | _ -> `Lowest
 ;;
 
-let init lexer =
-  let parser = { lexer; current = None; peek = None } in
+let init lexer params =
+  let parser = { lexer; current = None; peek = None; params } in
   let parser = advance parser in
   let parser = advance parser in
   parser
@@ -236,7 +254,6 @@ and parse_expression parser prec =
 and parse_prefix_expression parser =
   let map_parser = Result.map ~f:(fun v -> parser, v) in
   let token = parser.current |> Option.value_exn in
-  let () = Stdlib.print_endline @@ Token.show token in
   match token with
   | Token.Ident _ -> expr_parse_identifier parser |> map_parser
   | Token.Integer _ -> expr_parse_number parser |> map_parser
