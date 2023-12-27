@@ -8,6 +8,7 @@ and expression =
   | Integer of int
   | Boolean of bool
   | String of string (** Token.T*)
+  | List of string list
   | Prefix of
       { operator : Token.t
       ; right : expression
@@ -65,4 +66,30 @@ let token_literal = function
   | Program _ -> "program"
   | Expression _ -> "expression"
   | Statement _ -> "statement"
+;;
+
+let variable_to_string v =
+  match v with
+  | String s -> s
+  | _ -> failwith "unexpected non string statement"
+;;
+
+let build_template node =
+  let rec build_string nodes str =
+    match nodes with
+    | [] -> str
+    | hd :: tl ->
+      (match hd with
+       | ExpressionStatement stmnt ->
+         (match stmnt with
+          | String s -> build_string tl (str ^ s)
+          | _ -> build_string tl (str ^ ":|"))
+       | Variable v ->
+         let var_as_str = variable_to_string v.value in
+         build_string tl (str ^ var_as_str ^ "\n")
+       | _ -> build_string tl (str ^ ":("))
+  in
+  match node with
+  | Program n -> build_string n.statements ""
+  | _ -> ":("
 ;;

@@ -197,20 +197,24 @@ and parse_statement parser =
 and parse_variable parser =
   let* parser, name = parse_identifier parser in
   let* parser = expect_expression_end parser in
-  (* move parser onto the beginning of the expression *)
-  Ok (parser, Ast.Variable { name; value = Ast.String "" })
+  let tbl = parser.params in
+  match Hashtbl.find tbl name.identifier with
+  | Some (String item) -> Ok (parser, Ast.Variable { name; value = Ast.String item })
+  | Some (Bool item) -> Ok (parser, Ast.Variable { name; value = Ast.Boolean item })
+  | Some (List item) -> Ok (parser, Ast.Variable { name; value = Ast.List item })
+  | _ -> Error ("unable to find identifier in values table: " ^ name.identifier)
+
+and parse_identifier (parser : t) : (t * Ast.identifier, string) Result.t =
+  match parser.peek with
+  | Some (Ident identifier) -> Ok (advance parser, { identifier })
+  | Some tok -> Error ("missing ident, found " ^ Token.show @@ tok)
+  | _ -> Error "missing ident"
 
 and parse_return parser =
   let parser = advance parser in
   let* parser, expr = parse_expression parser `Lowest in
   let parser = chomp_semicolon parser in
   Ok (parser, Ast.Return expr)
-
-and parse_identifier parser =
-  match parser.peek with
-  | Some (Ident identifier) -> Ok (advance parser, { identifier })
-  | Some tok -> Error ("missing ident, found " ^ Token.show @@ tok)
-  | _ -> Error "missing ident"
 
 and parse_expression_statement parser =
   let* parser, expr = parse_expression parser `Lowest in
@@ -230,9 +234,7 @@ and parse_block parser =
   let* parser, block = parse_block' parser [] in
   Ok (parser, Ast.{ block })
 
-and parse_jinja_expression parser =
-  let* parser, variable = parse_variable parser in
-  Ok (parser, variable)
+and parse_jinja_expression parser = parse_variable parser
 
 and parse_expression parser prec =
   let* parser, left = parse_prefix_expression parser in
